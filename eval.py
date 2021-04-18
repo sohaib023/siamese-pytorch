@@ -3,9 +3,11 @@ import argparse
 
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import DataLoader
+from torchvision import transforms
 
 from siamese import SiameseNetwork
 from libs.dataset import Dataset
@@ -45,6 +47,7 @@ if __name__ == "__main__":
 
     model = SiameseNetwork()
     model.to(device)
+    criterion = torch.nn.BCELoss()
 
     checkpoint = torch.load(args.checkpoint)
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -65,6 +68,8 @@ if __name__ == "__main__":
         print("[{} / {}]".format(i, len(val_dataloader)))
 
         img1, img2, y = map(lambda x: x.to(device), [img1, img2, y])
+        class1 = class1[0]
+        class2 = class2[0]
 
         prob = model(img1, img2)
         loss = criterion(prob, y)
@@ -74,19 +79,21 @@ if __name__ == "__main__":
         total += len(y)
 
         fig = plt.figure("class1={}\tclass2={}".format(class1, class2), figsize=(4, 2))
-        plt.suptitle("cls1={}  conf={:.2f}  cls2={}".format(class1, prob[0], class2))
+        plt.suptitle("cls1={}  conf={:.2f}  cls2={}".format(class1, prob[0][0].item(), class2))
 
+        img1 = inv_transform(img1).cpu().numpy()[0]
+        img2 = inv_transform(img2).cpu().numpy()[0]
         # show first image
         ax = fig.add_subplot(1, 2, 1)
-        plt.imshow(inv_transform(img1[0]), cmap=plt.cm.gray)
+        plt.imshow(img1[0], cmap=plt.cm.gray)
         plt.axis("off")
 
         # show the second image
         ax = fig.add_subplot(1, 2, 2)
-        plt.imshow(inv_transform(img2[0]), cmap=plt.cm.gray)
+        plt.imshow(img2[0], cmap=plt.cm.gray)
         plt.axis("off")
 
         # show the plot
-        plt.savefig(os.path.join(args.checkpoint, 'images/{}.png').format(i))
+        plt.savefig(os.path.join(args.out_path, '{}.png').format(i))
 
     print("Validation: Loss={:.2f}\t Accuracy={:.2f}\t".format(sum(losses)/len(losses), correct / total))

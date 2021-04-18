@@ -56,6 +56,8 @@ class Dataset(torch.utils.data.IterableDataset):
         if self.shuffle_pairs:
             np.random.seed(int(time.time()))
             np.random.shuffle(self.indices1)
+        elif self.testing:
+            np.random.seed(int(time.time()))
         else:
             np.random.seed(1)
 
@@ -92,12 +94,12 @@ class Dataset(torch.utils.data.IterableDataset):
                 image1 = self.transform(image1).float()
                 image2 = self.transform(image2).float()
 
-            plt.imshow(image1[0])
-            plt.imshow(image2[0])
-            plt.show()
+            # plt.imshow(image1[0])
+            # plt.imshow(image2[0])
+            # plt.show()
 
             if self.testing:
-                yield (image1, image2), torch.FloatTensor([class1==class2]), (image_path1, image_path2)
+                yield (image1, image2), torch.FloatTensor([class1==class2]), (class1, class2)
             else:
                 yield (image1, image2), torch.FloatTensor([class1==class2])
         

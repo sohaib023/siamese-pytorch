@@ -25,7 +25,7 @@ if __name__ == "__main__":
         '--val_path',
         type=str,
         help="Path to directory containing validation dataset.",
-        default="../dataset/train"
+        default="../dataset/test"
     )
     parser.add_argument(
         '-o',
@@ -77,14 +77,15 @@ if __name__ == "__main__":
     writer = SummaryWriter(os.path.join(args.out_path, "summary"))
 
     for epoch in range(args.epochs):
+        print("[{} / {}]".format(epoch, args.epochs))
         model.train()
 
         losses = []
         correct = 0
         total = 0
 
-        pbar = tqdm(train_dataloader)
-        for (img1, img2), y in pbar:
+        # pbar = tqdm()
+        for (img1, img2), y in train_dataloader:
             img1, img2, y = map(lambda x: x.to(device), [img1, img2, y])
 
             prob = model(img1, img2)
@@ -101,7 +102,7 @@ if __name__ == "__main__":
         writer.add_scalar('train_loss', sum(losses)/len(losses), epoch)
         writer.add_scalar('train_acc', correct / total, epoch)
 
-        print("Training: Loss={:.2f}\t Accuracy={:.2f}\t".format(sum(losses)/len(losses), correct / total))
+        print("\tTraining: Loss={:.2f}\t Accuracy={:.2f}\t".format(sum(losses)/len(losses), correct / total))
 
         model.eval()
 
@@ -122,7 +123,7 @@ if __name__ == "__main__":
         writer.add_scalar('val_loss', sum(losses)/len(losses), epoch)
         writer.add_scalar('val_acc', correct / total, epoch)
 
-        print("Validation: Loss={:.2f}\t Accuracy={:.2f}\t".format(sum(losses)/len(losses), correct / total))
+        print("\tValidation: Loss={:.2f}\t Accuracy={:.2f}\t".format(sum(losses)/len(losses), correct / total))
 
         if (epoch + 1) % args.save_after == 0:
             torch.save(

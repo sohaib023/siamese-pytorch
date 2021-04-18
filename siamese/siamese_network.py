@@ -15,15 +15,16 @@ class SiameseNetwork(nn.Module):
         out_features = list(self.backbone.modules())[-1].out_features
 
         self.cls_head = nn.Sequential(
-            # nn.Dropout(p=0.5),
-            nn.Linear(out_features * 2, 512),
+            nn.Dropout(p=0.5),
+            nn.Linear(out_features, 512),
             nn.BatchNorm1d(512),
-            nn.Sigmoid(),
+            nn.ReLU(),
 
-            # nn.Dropout(p=0.5),
+            nn.Dropout(p=0.5),
             nn.Linear(512, 64),
             nn.BatchNorm1d(64),
             nn.Sigmoid(),
+            nn.Dropout(),
 
             nn.Linear(64, 1),
             nn.Sigmoid(),
@@ -33,7 +34,7 @@ class SiameseNetwork(nn.Module):
         feat1 = self.backbone(img1)
         feat2 = self.backbone(img2)
         
-        combined_features = torch.cat((feat1, feat2), dim=-1)
+        combined_features = feat1 * feat2
 
         output = self.cls_head(combined_features)
         return output
