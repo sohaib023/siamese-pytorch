@@ -16,24 +16,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        '-v',
         '--val_path',
         type=str,
         help="Path to directory containing validation dataset.",
-        default="../dataset/test"
+        required=True
     )
     parser.add_argument(
         '-o',
         '--out_path',
         type=str,
-        help="Path for outputting model weights and tensorboard summary.",
-        default="output/images"
+        help="Path for saving prediction images.",
+        required=True
     )
     parser.add_argument(
         '-c',
         '--checkpoint',
         type=str,
-        help="Path to model to be used for inference.",
-        default="output/epoch_200.pth"
+        help="Path of model checkpoint to be used for inference.",
+        required=True
     )
 
     args = parser.parse_args()
@@ -45,13 +46,12 @@ if __name__ == "__main__":
     val_dataset     = Dataset(args.val_path, shuffle_pairs=False, augment=False, testing=True)
     val_dataloader   = DataLoader(val_dataset, batch_size=1)
 
-    model = SiameseNetwork()
-    model.to(device)
     criterion = torch.nn.BCELoss()
 
     checkpoint = torch.load(args.checkpoint)
+    model = SiameseNetwork(backbone=checkpoint['backbone'])
+    model.to(device)
     model.load_state_dict(checkpoint['model_state_dict'])
-
     model.eval()
 
     losses = []

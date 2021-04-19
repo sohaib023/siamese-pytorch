@@ -19,20 +19,27 @@ if __name__ == "__main__":
         '--train_path',
         type=str,
         help="Path to directory containing training dataset.",
-        default="../dataset/train"
+        required=True
     )
     parser.add_argument(
         '--val_path',
         type=str,
         help="Path to directory containing validation dataset.",
-        default="../dataset/test"
+        required=True
     )
     parser.add_argument(
         '-o',
         '--out_path',
         type=str,
         help="Path for outputting model weights and tensorboard summary.",
-        default="output"
+        required=True
+    )
+    parser.add_argument(
+        '-b',
+        '--backbone',
+        type=str,
+        help="Network backbone from torchvision.models to be used in the siamese network.",
+        default="resnet18"
     )
     parser.add_argument(
         '-lr',
@@ -68,13 +75,15 @@ if __name__ == "__main__":
     train_dataloader = DataLoader(train_dataset, batch_size=8, drop_last=True)
     val_dataloader   = DataLoader(val_dataset, batch_size=8)
 
-    model = SiameseNetwork()
+    model = SiameseNetwork(backbone=args.backbone)
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     criterion = torch.nn.BCELoss()
 
     writer = SummaryWriter(os.path.join(args.out_path, "summary"))
+
+    best_val = 10000000000
 
     for epoch in range(args.epochs):
         print("[{} / {}]".format(epoch, args.epochs))
@@ -120,16 +129,30 @@ if __name__ == "__main__":
             correct += torch.count_nonzero(y == (prob > 0.5)).item()
             total += len(y)
 
-        writer.add_scalar('val_loss', sum(losses)/len(losses), epoch)
+        val_loss = sum(losses)/max(1, len(losses))
+        writer.add_scalar('val_loss', val_loss, epoch)
         writer.add_scalar('val_acc', correct / total, epoch)
 
-        print("\tValidation: Loss={:.2f}\t Accuracy={:.2f}\t".format(sum(losses)/len(losses), correct / total))
+        print("\tValidation: Loss={:.2f}\t Accuracy={:.2f}\t".format(val_loss, correct / total))
+
+        if val_loss < best_val:
+            best_val = val_loss
+            torch.save(
+                {
+                    "epoch": epoch + 1,
+                    "model_state_dict": model.state_dict(),
+                    "backbone": args.backbone,
+                    "optimizer_state_dict": optimizer.state_dict()
+                },
+                os.path.join(args.out_path, "best.pth")
+            )            
 
         if (epoch + 1) % args.save_after == 0:
             torch.save(
                 {
                     "epoch": epoch + 1,
                     "model_state_dict": model.state_dict(),
+                    "backbone": args.backbone,
                     "optimizer_state_dict": optimizer.state_dict()
                 },
                 os.path.join(args.out_path, "epoch_{}.pth".format(epoch + 1))
