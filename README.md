@@ -29,7 +29,7 @@ The expected format for both the training and validation dataset is the same. Im
 
 ## Training the model:
 To train the model, run the following command along with the required command line arguments:
-```shell
+```
 python train.py [-h] --train_path TRAIN_PATH --val_path VAL_PATH -o OUT_PATH
                 [-b BACKBONE] [-lr LEARNING_RATE] [-e EPOCHS] [-s SAVE_AFTER]
 
@@ -59,7 +59,7 @@ Following command can be used to evaluate the model on a validation set. Output 
 
 Note: During evaluation the pairs are generated with a deterministic seed for the numpy random module, so as to allow comparisons between multiple evaluations.
 
-```shell
+```
 python eval.py [-h] -v VAL_PATH -o OUT_PATH -c CHECKPOINT
 
 optional arguments:
