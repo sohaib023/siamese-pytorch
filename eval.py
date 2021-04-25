@@ -41,9 +41,10 @@ if __name__ == "__main__":
 
     os.makedirs(args.out_path, exist_ok=True)
 
+    # Set device to CUDA if a CUDA device is available, else CPU
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    val_dataset     = Dataset(args.val_path, shuffle_pairs=False, augment=False, testing=True)
+    val_dataset     = Dataset(args.val_path, shuffle_pairs=False, augment=False)
     val_dataloader   = DataLoader(val_dataset, batch_size=1)
 
     criterion = torch.nn.BCELoss()
@@ -81,6 +82,7 @@ if __name__ == "__main__":
         fig = plt.figure("class1={}\tclass2={}".format(class1, class2), figsize=(4, 2))
         plt.suptitle("cls1={}  conf={:.2f}  cls2={}".format(class1, prob[0][0].item(), class2))
 
+        # Apply inverse transform (denormalization) on the images to retrieve original images.
         img1 = inv_transform(img1).cpu().numpy()[0]
         img2 = inv_transform(img2).cpu().numpy()[0]
         # show first image
