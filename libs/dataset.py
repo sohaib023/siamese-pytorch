@@ -56,8 +56,8 @@ class Dataset(torch.utils.data.IterableDataset):
         if self.shuffle_pairs:
             np.random.seed(int(time.time()))
             np.random.shuffle(self.indices1)
-        elif self.testing:
-            np.random.seed(int(time.time()))
+        # elif self.testing:
+            # np.random.seed(int(time.time()))
         else:
             np.random.seed(1)
 
