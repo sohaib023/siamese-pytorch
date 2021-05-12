@@ -4,17 +4,12 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-import tensorrt as trt
-import pycuda.autoinit
-import pycuda.driver as cuda
-
 import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from libs.dataset import Dataset
-
-TRT_LOGGER = trt.Logger()
+from siamese.siamese_network_trt import SiameseNetworkTRT
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -49,27 +44,8 @@ if __name__ == "__main__":
 
     criterion = torch.nn.BCELoss()
 
-    with open(args.engine, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
-        engine = runtime.deserialize_cuda_engine(f.read())
-    context = engine.create_execution_context()
-
-    device_input1, device_input2 = [None] * 2
-    for binding in engine:
-        if engine.binding_is_input(binding):
-            input_shape = engine.get_binding_shape(binding)
-            input_size = trt.volume(input_shape) * engine.max_batch_size * np.dtype(np.float32).itemsize  # in bytes
-            if device_input1 is None:
-                device_input1 = cuda.mem_alloc(input_size)
-            elif device_input2 is None:
-                device_input2 = cuda.mem_alloc(input_size)
-            else:
-                raise Exception("Network expects more than 2 inputs.")
-        else:
-            output_shape = engine.get_binding_shape(binding)
-            
-            host_output = cuda.pagelocked_empty(trt.volume(output_shape) * engine.max_batch_size, dtype=np.float32)
-            device_output = cuda.mem_alloc(host_output.nbytes)
-    stream = cuda.Stream()
+    model = SiameseNetworkTRT()
+    model.load_model(args.engine)
 
     losses = []
     correct = 0
@@ -87,25 +63,16 @@ if __name__ == "__main__":
         class1 = class1[0]
         class2 = class2[0]
 
-        cuda.memcpy_htod_async(device_input1, img1.numpy().astype(np.float32), stream)
-        cuda.memcpy_htod_async(device_input2, img2.numpy().astype(np.float32), stream)
+        prob = model.predict(img1.cpu().numpy(), img2.cpu().numpy(), preprocess=False)
 
-        # run inference
-        context.execute_async(bindings=[int(device_input1), int(device_input2), int(device_output)], stream_handle=stream.handle)
-        cuda.memcpy_dtoh_async(host_output, device_output, stream)
-        stream.synchronize()
-
-        # postprocess results
-        prob = torch.Tensor(host_output).reshape(engine.max_batch_size, output_shape[0])
-
-        loss = criterion(prob, y)
+        loss = criterion(torch.Tensor([[prob]]), y)
 
         losses.append(loss.item())
-        correct += torch.count_nonzero(y == (prob > 0.5)).item()
-        total += len(y)
+        correct += y[0, 0].item() == (prob > 0.5)
+        total += 1
 
         fig = plt.figure("class1={}\tclass2={}".format(class1, class2), figsize=(4, 2))
-        plt.suptitle("cls1={}  conf={:.2f}  cls2={}".format(class1, prob[0][0].item(), class2))
+        plt.suptitle("cls1={}  conf={:.2f}  cls2={}".format(class1, prob, class2))
 
         img1 = inv_transform(img1).cpu().numpy()[0]
         img2 = inv_transform(img2).cpu().numpy()[0]

@@ -1,33 +1,6 @@
+import cv2
 import argparse
-
-import torch
-import numpy as np
-from PIL import Image
-import tensorrt as trt
-import pycuda.autoinit
-import pycuda.driver as cuda
-from torchvision import transforms
-
-
-# logger to capture errors, warnings, and other information during the build and inference phases
-TRT_LOGGER = trt.Logger()
-
-feed_shape = (224, 224)
-
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    transforms.Resize(feed_shape)
-])
-
-def preprocess(filename1, filename2):
-    image1 = Image.open(filename1).convert("RGB")
-    image2 = Image.open(filename2).convert("RGB")
-
-    image1 = transform(image1).float()
-    image2 = transform(image2).float()
-
-    return image1.numpy().astype(np.float32), image2.numpy().astype(np.float32)
+from siamese.siamese_network_trt import SiameseNetworkTRT
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -54,40 +27,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    with open(args.engine, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
-        engine = runtime.deserialize_cuda_engine(f.read())
-    context = engine.create_execution_context()
+    model = SiameseNetworkTRT()
+    model.load_model(args.engine)
 
-    device_input1, device_input2 = [None] * 2
-    for binding in engine:
-        if engine.binding_is_input(binding):  # we expect only one input
-            input_shape = engine.get_binding_shape(binding)
-            input_size = trt.volume(input_shape) * engine.max_batch_size * np.dtype(np.float32).itemsize  # in bytes
-            if device_input1 is None:
-                device_input1 = cuda.mem_alloc(input_size)
-            elif device_input2 is None:
-                device_input2 = cuda.mem_alloc(input_size)
-            else:
-                raise Exception("Network expects more than 2 inputs.")
-        else:  # and one output
-            output_shape = engine.get_binding_shape(binding)
-            # create page-locked memory buffers (i.e. won't be swapped to disk)
-            host_output = cuda.pagelocked_empty(trt.volume(output_shape) * engine.max_batch_size, dtype=np.float32)
-            device_output = cuda.mem_alloc(host_output.nbytes)
+    image1 = cv2.imread(args.image1)
+    image2 = cv2.imread(args.image2)
+    similarity = model.predict(image1, image2)
 
-    # Create a stream in which to copy inputs/outputs and run inference.
-    stream = cuda.Stream()
-
-    # preprocess input data
-    host_input = preprocess(args.image1, args.image2)
-    cuda.memcpy_htod_async(device_input1, host_input[0], stream)
-    cuda.memcpy_htod_async(device_input2, host_input[1], stream)
-
-    # run inference
-    context.execute_async(bindings=[int(device_input1), int(device_input2), int(device_output)], stream_handle=stream.handle)
-    cuda.memcpy_dtoh_async(host_output, device_output, stream)
-    stream.synchronize()
-
-    # postprocess results
-    output_data = torch.Tensor(host_output).reshape(engine.max_batch_size, output_shape[0])
-    print(F"Similarity between the two images = {round(output_data[0][0].item(), 2)}")
+    print(F"Similarity between the two images = {round(similarity, 2)}")
